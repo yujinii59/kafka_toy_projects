@@ -5,14 +5,12 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.json.JSONObject;
 
 import java.util.Properties;
 
 public class TwitterProducer {
 
-    public Producer<String, JSONObject> producer;
-
+    public Producer<String, String> producer;
 
     public TwitterProducer() {
 
@@ -29,22 +27,22 @@ public class TwitterProducer {
 
         props.setProperty(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "twitter-transaction-chatgpt");
 
-        this.producer = new KafkaProducer<>(props);
+        producer = new KafkaProducer<>(props);
 
-        this.producer.initTransactions();
+        producer.initTransactions();
 
-        this.producer.beginTransaction();
+        producer.beginTransaction();
     }
 
-    public void putDataToKafka(JSONObject data) {
+    public void putDataToKafka(String data) {
 
         try {
-            ProducerRecord<String, JSONObject> record = new ProducerRecord<>(
+            ProducerRecord<String, String> record = new ProducerRecord<>(
                                                                                     "twitter-chatgpt",
                                                                                     data
                                                                             );
-            this.producer.send(record);
-            this.producer.flush();
+            producer.send(record);
+            producer.flush();
             System.out.println();
         } catch (Exception e) {
             producer.abortTransaction(); // 프로듀서 트랜잭션 중단

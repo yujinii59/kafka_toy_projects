@@ -12,6 +12,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -44,7 +45,7 @@ public class TwitterStreaming {
 
     private static void connectStream(String bearerToken) throws IOException, URISyntaxException {
 
-        TwitterProducer producer = new TwitterProducer();
+        TwitterProducer tweetProducer = new TwitterProducer();
 
         HttpClient httpClient = HttpClients.custom()
                 .setDefaultRequestConfig(RequestConfig.custom()
@@ -65,23 +66,40 @@ public class TwitterStreaming {
             BufferedReader reader = new BufferedReader(new InputStreamReader((entity.getContent())));
             System.out.println("start!");
             String line = reader.readLine();
-            while (line != null) {
-                if (line.length() == 0){
-                    System.out.println(line);
-                    line = reader.readLine();
+            try {
+                while (line != null) {
+                    if (line.length() == 0) {
+                        System.out.println(line);
+                        line = reader.readLine();
+                    } else if (line.charAt(0) == '{') {
+                        try {
+                            JSONObject data = (JSONObject) new JSONObject(line).get("data");
+                            System.out.println(data.get("text"));
+                            //                    tweets.put(data);
+                            ProducerRecord<String, String> record = new ProducerRecord<>(
+                                    "twitter-chatgpt",
+                                    line
+                            );
+                            tweetProducer.producer.send(record);
+                            tweetProducer.producer.flush();
+
+                            line = reader.readLine();
+                            System.out.println("save");
+                        } catch (ClassCastException e) {
+                            e.printStackTrace();
+                            System.out.println(new JSONObject(line));
+                        }
+                    } else {
+                        System.out.println(line);
+                        line = reader.readLine();
+                    }
                 }
-                else if (line.charAt(0) == '{') {
-                    JSONObject data = (JSONObject) new JSONObject(line).get("data");
-//                    System.out.println(data.get("text"));
-//                    tweets.put(data);
-                    producer.putDataToKafka(data);
-                    line = reader.readLine();
-                    System.out.println("save");
-                }
-                else {
-                    System.out.println(line);
-                    line = reader.readLine();
-                }
+            } catch (Exception e) {
+                tweetProducer.producer.abortTransaction(); // 프로듀서 트랜잭션 중단
+                e.printStackTrace();
+            } finally {
+                tweetProducer.producer.commitTransaction(); // 프로듀서 트랜잭션 커밋
+                tweetProducer.producer.close();
             }
         }
 
